@@ -1,0 +1,1 @@
+install(FILES flux_variations_FD_and_PRISM_2023.root DESTINATION share/duneanafluxtools/inputs)
