@@ -19,25 +19,31 @@ macro(fetchduneanaobj DUNE_ANAOBJ_BRANCH)
   include_directories(${duneanaobj_SOURCE_DIR})
 
   ROOT_GENERATE_DICTIONARY(StandardRecordDict
-    ${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord/StandardRecord.h
+    ${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord/classes.h
     LINKDEF
       ${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord/classes_def.xml)
 
-  file(GLOB SR_IMPL_FILES "${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord/*.cxx")
-  LIST(APPEND SR_IMPL_FILES ${CMAKE_CURRENT_BINARY_DIR}/StandardRecordDict.cxx)
+  add_library(libStandardRecordDict SHARED ${CMAKE_CURRENT_BINARY_DIR}/StandardRecordDict.cxx)
+  target_link_libraries(libStandardRecordDict PUBLIC ROOT::RIO)
+  set_target_properties(libStandardRecordDict PROPERTIES OUTPUT_NAME "StandardRecordDict")
 
+  target_include_directories(libStandardRecordDict PUBLIC
+    $<BUILD_INTERFACE:${duneanaobj_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>)
+  target_include_directories(libStandardRecordDict PRIVATE
+    $<BUILD_INTERFACE:${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord> #root puts this in the dictionary
+    )
+
+  file(GLOB SR_IMPL_FILES "${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord/*.cxx")
   add_library(duneanaobj_StandardRecord SHARED ${SR_IMPL_FILES})
-  target_link_libraries(duneanaobj_StandardRecord PUBLIC ROOT::MathCore ROOT::Physics)
+  target_link_libraries(duneanaobj_StandardRecord PUBLIC libStandardRecordDict ROOT::MathCore ROOT::Physics)
 
   target_include_directories(duneanaobj_StandardRecord PUBLIC
     $<BUILD_INTERFACE:${duneanaobj_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include>)
-  target_include_directories(duneanaobj_StandardRecord PRIVATE
-    $<BUILD_INTERFACE:${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord> #root puts this in the dictionary
-    )
 
   set_target_properties(duneanaobj_StandardRecord PROPERTIES EXPORT_NAME all)
-  install(TARGETS duneanaobj_StandardRecord EXPORT duneanafluxtools-targets DESTINATION lib)
+  install(TARGETS duneanaobj_StandardRecord libStandardRecordDict EXPORT duneanafluxtools-targets DESTINATION lib)
 
   file(GLOB SR_HEADER_FILES "${duneanaobj_SOURCE_DIR}/duneanaobj/StandardRecord/*.h")
 

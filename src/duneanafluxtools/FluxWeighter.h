@@ -65,15 +65,11 @@ public:
   int GetNuConfig(int nu_pdg, bool IsND, bool IsNuMode,
                   bool isSpecHCRun = false) const;
 
-  std::vector<std::unique_ptr<TH1>>
-  GetNDOffAxisShifts(TFile *f, std::string nd_dir, std::string hname) const;
-
   int GetFocussingBin(int nu_pdg, double enu_GeV, double off_axis_pos_m,
                       int nu_config) const;
 
   int GetHadProdBin(int nu_pdg, double enu_GeV, double off_axis_pos_m,
                     int nu_config) const;
-
 
   double GetFluxFocussingWeight(size_t param_id, double param_val, int bin,
                                 int nu_config) const;
@@ -105,4 +101,8 @@ public:
     std::vector<std::vector<std::unique_ptr<TH1>>> FDuncerts;
 
   } hadprod;
+
+private:
+  std::vector<std::unique_ptr<TH1>>
+  GetNDOffAxisShifts(TFile *f, std::string nd_dir, std::string hname) const;
 };

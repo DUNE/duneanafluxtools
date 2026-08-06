@@ -7,6 +7,8 @@
 #include "TFile.h"
 #include "TTree.h"
 
+// #define DAFT_VERBOSE
+
 int main(int argc, char const *argv[]) {
 
   if (argc != 3) {
@@ -24,9 +26,11 @@ int main(int argc, char const *argv[]) {
     return 1;
   }
 
+  bool cafmakerdir = false;
   auto caf = fin->Get<TTree>("cafTree");
   if (!caf) {
     caf = fin->Get<TTree>("cafmaker/cafTree");
+    cafmakerdir = true;
   }
   if (!caf) {
     std::cout << "[ERROR]: Failed to read cafTree or cafmaker/cafTree from "
@@ -41,7 +45,11 @@ int main(int argc, char const *argv[]) {
   std::cout << "Input cafTree has " << ents << " entries." << std::endl;
 
   TFile *fout = TFile::Open(argv[2], "RECREATE");
-  TTree *cafout = caf->CloneTree(0);
+  if (cafmakerdir) {
+    fout->mkdir("cafmaker");
+  }
+  TTree *cafout = new TTree("cafTree", "");
+  cafout->Branch("rec", &SR);
 
   TTree *globalout = nullptr;
   caf::SRGlobal *gl = nullptr;
@@ -49,18 +57,17 @@ int main(int argc, char const *argv[]) {
   if (global) {
     global->SetBranchAddress("global", &gl);
     global->GetEntry(0);
-    globalout = global->CloneTree(0);
   } else {
-    globalout = new TTree("globalTree", "");
     gl = new caf::SRGlobal();
-    globalout->Branch("global", &gl);
   }
+  globalout = new TTree("globalTree", "");
+  globalout->Branch("global", &gl);
 
   auto &fw = FluxWeighter::Get();
 
   auto get_param_index = [&](std::string const &pname) -> int {
-    for (size_t i = 0; i < gl->wgts.params.size(); ++i) {
-      if (gl->wgts.params[i].name == pname) {
+    for (size_t i = 0; i < gl->wgts.flux_params.size(); ++i) {
+      if (gl->wgts.flux_params[i].name == pname) {
         return i;
       }
     }
@@ -77,8 +84,8 @@ int main(int argc, char const *argv[]) {
       ph.vals = std::vector<float>{0, 1};
       ph.name = nm;
       ph.id = 3000 + fpi;
-      focussing_param_indexes.push_back(gl->wgts.params.size());
-      gl->wgts.params.push_back(ph);
+      focussing_param_indexes.push_back(gl->wgts.flux_params.size());
+      gl->wgts.flux_params.push_back(ph);
     } else {
       focussing_param_indexes.push_back(pidx);
     }
@@ -94,8 +101,8 @@ int main(int argc, char const *argv[]) {
       ph.vals = std::vector<float>{0, 1};
       ph.name = nm;
       ph.id = 3500 + hppi;
-      hadprod_param_indexes.push_back(gl->wgts.params.size());
-      gl->wgts.params.push_back(ph);
+      hadprod_param_indexes.push_back(gl->wgts.flux_params.size());
+      gl->wgts.flux_params.push_back(ph);
     } else {
       hadprod_param_indexes.push_back(pidx);
     }
@@ -110,36 +117,41 @@ int main(int argc, char const *argv[]) {
 
     bool is_neutrino_mode = (SR->beam.hornI > 0);
 
+#ifdef DAFT_VERBOSE
     std::cout << "CAF SR: #" << i << std::endl;
-
+#endif
     int nui = 0;
     for (auto &nu : SR->mc.nu) {
       auto ratios = ana::GetFluxWeights(nu, is_neutrino_mode);
 
+#ifdef DAFT_VERBOSE
       std::cout << "  Neutrino # " << nui++ << ", PDG: " << nu.pdgorig
                 << std::endl;
       std::cout << "  Focussing ratios: [ ";
       for (auto r : ratios.first) {
         std::cout << r << ", ";
       }
+#endif
 
+#ifdef DAFT_VERBOSE
       std::cout << " ]\n  HadronProduction ratios: [ ";
       for (auto r : ratios.second) {
         std::cout << r << ", ";
       }
       std::cout << " ]" << std::endl;
+#endif
 
-      if (nu.syst_dials.size() <= max_idx) {
-        nu.syst_dials.resize(max_idx + 1);
+      if (nu.flux_systs.size() <= max_idx) {
+        nu.flux_systs.resize(max_idx + 1);
       }
 
       for (size_t fpi = 0; fpi < fw.GetNFocussingParams(); fpi++) {
-        nu.syst_dials[focussing_param_indexes[fpi]].weights =
+        nu.flux_systs[focussing_param_indexes[fpi]].weights =
             std::vector<float>{1, ratios.first[fpi]};
       }
 
       for (size_t hppi = 0; hppi < fw.GetNHadProdPCAComponents(); hppi++) {
-        nu.syst_dials[hadprod_param_indexes[hppi]].weights =
+        nu.flux_systs[hadprod_param_indexes[hppi]].weights =
             std::vector<float>{1, ratios.second[hppi]};
       }
     }

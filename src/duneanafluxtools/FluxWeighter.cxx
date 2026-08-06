@@ -75,10 +75,15 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
     std::cout << "Reading inputs from " << filename << std::endl;
   }
 
-  TFile *inpF = new TFile(filename.c_str());
+  TDirectory *ogd = gDirectory;
+
+  TFile *inpF = new TFile(filename.c_str(), "READ");
   if (!inpF || !inpF->IsOpen()) {
-    std::cout << "[ERROR]: Couldn't open input file: " << filename << std::endl;
-    exit(1);
+    if (ogd) {
+      ogd->cd();
+    }
+    throw std::runtime_error(
+        std::string("[ERROR]: Couldn't open input file: ") + filename);
   }
 
   {
@@ -90,9 +95,13 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
     std::string input_dir = "FluxParameters/Focussing";
     TDirectory *d = inpF->GetDirectory(input_dir.c_str());
     if (!d) {
-      std::cout << "[ERROR]: Couldn't open directory : " << input_dir
-                << " in input file: " << filename << std::endl;
-      exit(1);
+      if (ogd) {
+        ogd->cd();
+      }
+
+      throw std::runtime_error(
+          std::string("[ERROR]: Couldn't open directory : ") + input_dir +
+          " in input file: " + filename);
     }
 
     int param_id = 0;
@@ -116,7 +125,10 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
           std::unique_ptr<TAxis>((TAxis *)param_d->Get("OffAxisTAxis"));
       if (param_id &&
           !check_axis(focussing.OffAxisTAxes.front().get(), oa_axis.get())) {
-        exit(1);
+        if (ogd) {
+          ogd->cd();
+        }
+        throw std::runtime_error("[ERROR]: Mismatched axes");
       }
       focussing.OffAxisTAxes.emplace_back(std::move(oa_axis));
 
@@ -172,13 +184,17 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
                                         .at(oab_i)
                                         ->GetXaxis(),
                                     AllOffAxisShifts.at(oab_i)->GetXaxis())) {
-                      std::cout << "[ERROR]: Found differing energy binning "
-                                   "for off axis bin "
-                                << oab_i
-                                << "slices for two flux focussing parameters: "
-                                << focussing.UncertLabels.front() << " and "
-                                << syst << std::endl;
-                      exit(1);
+                      if (ogd) {
+                        ogd->cd();
+                      }
+                      std::stringstream ss;
+                      ss << "[ERROR]: Found differing energy binning "
+                            "for off axis bin "
+                         << oab_i
+                         << "slices for two flux focussing parameters: "
+                         << focussing.UncertLabels.front() << " and " << syst;
+
+                      throw std::runtime_error(ss.str());
                     }
                   }
                 }
@@ -231,9 +247,13 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
     TDirectory *d = inpF->GetDirectory(input_dir.c_str());
 
     if (!d) {
-      std::cout << "[ERROR]: Couldn't open directory : " << input_dir
-                << " in input file: " << filename << std::endl;
-      exit(1);
+
+      if (ogd) {
+        ogd->cd();
+      }
+      throw std::runtime_error(
+          std::string("[ERROR]: Couldn't open directory : ") + input_dir +
+          " in input file: " + filename);
     }
 
     int param_id = 0;
@@ -293,7 +313,10 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
                 if (param_id &&
                     !check_axis(hadprod.OffAxisTAxes.front()[nucfg].get(),
                                 oa_axis.get())) {
-                  exit(1);
+                  if (ogd) {
+                    ogd->cd();
+                  }
+                  throw std::runtime_error("[ERROR]: Mismatched axes");
                 }
                 hadprod.OffAxisTAxes.back().emplace_back(std::move(oa_axis));
 
@@ -301,7 +324,10 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
                     !check_axis(
                         hadprod.NDuncerts.front().at(nucfg).front()->GetXaxis(),
                         AllOffAxisShifts.front()->GetXaxis())) {
-                  exit(1);
+                  if (ogd) {
+                    ogd->cd();
+                  }
+                  throw std::runtime_error("[ERROR]: Mismatched axes");
                 }
 
                 if (verbose) {
@@ -336,6 +362,9 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
       param_id += 1;
     }
     hadprod.NPCAComponents = param_id;
+  }
+  if (ogd) {
+    ogd->cd();
   }
 }
 
@@ -513,9 +542,10 @@ double FluxWeighter::GetFluxFocussingWeight(size_t param_id, double param_val,
                                .at(bin_oa)
                                ->GetBinContent(bin_e);
   } else {
-    return 1 +
-           param_val *
-               focussing.FDuncerts.at(param_id).at(nucfg)->GetBinContent(bin);
+    return std::max(
+        0.0,
+        1 + param_val *
+                focussing.FDuncerts.at(param_id).at(nucfg)->GetBinContent(bin));
   }
 }
 
@@ -538,7 +568,9 @@ double FluxWeighter::GetFluxHadProdWeight(size_t param_id, double param_val,
                                .at(bin_oa)
                                ->GetBinContent(bin_e);
   } else {
-    return 1 + param_val *
-                   hadprod.FDuncerts.at(param_id).at(nucfg)->GetBinContent(bin);
+    return std::max(
+        0.0,
+        1 + param_val *
+                hadprod.FDuncerts.at(param_id).at(nucfg)->GetBinContent(bin));
   }
 }
