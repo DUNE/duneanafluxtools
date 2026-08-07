@@ -57,6 +57,7 @@ int main(int argc, char const *argv[]) {
   if (global) {
     global->SetBranchAddress("global", &gl);
     global->GetEntry(0);
+    gl->UpdateVersionInformation();
   } else {
     gl = new caf::SRGlobal();
   }
@@ -110,7 +111,6 @@ int main(int argc, char const *argv[]) {
   }
 
   globalout->Fill();
-  globalout->Write();
 
   for (Long64_t i = 0; i < ents; ++i) {
     caf->GetEntry(i);
