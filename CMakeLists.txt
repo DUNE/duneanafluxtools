@@ -19,7 +19,30 @@ find_program(CMAKE_CXX_COMPILER NAMES $ENV{CXX} g++ PATHS ENV PATH NO_DEFAULT_PA
 
 LIST(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/Modules)
 
+option(USE_DUNEANAOBJ "Whether to build caf tools" ON)
+if(NOT DEFINED DUNE_ANAOBJ_BRANCH OR "${DUNE_ANAOBJ_BRANCH}x" STREQUAL "x")
+  set(DUNE_ANAOBJ_BRANCH v04_00_00)
+endif()
+
+# -- dependencies start
+
 find_package(ROOT 6 REQUIRED)
+
+if(USE_DUNEANAOBJ)
+  find_package(duneanaobj QUIET)
+  if(NOT TARGET duneanaobj::StandardRecord) # need to fetch it
+    include(FetchContent)
+    FetchContent_Declare(
+        duneanaobj
+        GIT_REPOSITORY https://github.com/DUNE/duneanaobj.git
+        GIT_TAG        ${DUNE_ANAOBJ_BRANCH}
+      )
+    set(SKIP_CET ON)
+    FetchContent_MakeAvailable(duneanaobj)
+  endif()
+endif()
+
+# -- dependencies end
 
 add_subdirectory(src/duneanafluxtools)
 
@@ -32,11 +55,37 @@ target_include_directories(duneanafluxtools_all INTERFACE
 
 add_library(duneanafluxtools::all ALIAS duneanafluxtools_all)
 
-add_subdirectory(app)
-add_subdirectory(examples)
+if(USE_DUNEANAOBJ)
+  add_subdirectory(app)
+  add_subdirectory(examples)
+endif()
 
 configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/Templates/setup.duneanafluxtools.sh.in
   ${PROJECT_BINARY_DIR}/setup.duneanafluxtools.sh @ONLY)
 install(PROGRAMS ${PROJECT_BINARY_DIR}/setup.duneanafluxtools.sh DESTINATION bin)
 
 add_subdirectory(inputs)
+
+install(EXPORT duneanafluxtools-targets
+  FILE duneanafluxtoolsTargets.cmake
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/cmake/duneanafluxtools
+)
+
+include(CMakePackageConfigHelpers)
+configure_package_config_file(
+  ${CMAKE_CURRENT_LIST_DIR}/cmake/Templates/duneanafluxtoolsConfig.cmake.in
+  ${CMAKE_BINARY_DIR}/duneanafluxtoolsConfig.cmake
+  INSTALL_DESTINATION
+    /this/is/ignored/for/some/reason/thanks/kitware
+  NO_SET_AND_CHECK_MACRO
+  NO_CHECK_REQUIRED_COMPONENTS_MACRO)
+
+write_basic_package_version_file(
+  ${CMAKE_BINARY_DIR}/duneanafluxtoolsConfigVersion.cmake
+  VERSION ${duneanafluxtools_VERSION}
+  COMPATIBILITY AnyNewerVersion)
+
+install(FILES
+    ${CMAKE_BINARY_DIR}/duneanafluxtoolsConfig.cmake
+    ${CMAKE_BINARY_DIR}/duneanafluxtoolsConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/cmake/duneanafluxtools)
