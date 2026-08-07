@@ -19,7 +19,7 @@ find_program(CMAKE_CXX_COMPILER NAMES $ENV{CXX} g++ PATHS ENV PATH NO_DEFAULT_PA
 
 LIST(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/Modules)
 
-option(USE_DUNEANAOBJ "Whether to build caf tools" ON)
+option(duneanafluxtools_USE_DUNEANAOBJ "Whether to build caf tools" ON)
 if(NOT DEFINED DUNE_ANAOBJ_BRANCH OR "${DUNE_ANAOBJ_BRANCH}x" STREQUAL "x")
   set(DUNE_ANAOBJ_BRANCH v04_00_00)
 endif()
@@ -28,7 +28,7 @@ endif()
 
 find_package(ROOT 6 REQUIRED)
 
-if(USE_DUNEANAOBJ)
+if(duneanafluxtools_USE_DUNEANAOBJ)
   find_package(duneanaobj QUIET)
   if(NOT TARGET duneanaobj::StandardRecord) # need to fetch it
     include(FetchContent)
@@ -55,7 +55,7 @@ target_include_directories(duneanafluxtools_all INTERFACE
 
 add_library(duneanafluxtools::all ALIAS duneanafluxtools_all)
 
-if(USE_DUNEANAOBJ)
+if(duneanafluxtools_USE_DUNEANAOBJ)
   add_subdirectory(app)
   add_subdirectory(examples)
 endif()
