@@ -15,6 +15,14 @@ static FluxWeighter *globalFluxHelper = nullptr;
 FluxWeighter const &FluxWeighter::Get() {
   if (!globalFluxHelper) {
     globalFluxHelper = new FluxWeighter();
+    if (!std::getenv("duneanafluxtools_ROOT")) {
+      throw std::runtime_error(
+          "[ERROR]: Environment Variable duneanafluxtools_ROOT is not set, so "
+          "we cannot find the expected input file. Either set it (usually via "
+          "source setup.duneanafluxtools.sh) or instantiate a FluxWeighter "
+          "instance and called FluxWeighter::Initialize passing the path of an "
+          "input file.");
+    }
     globalFluxHelper->Initialize(
         std::string(std::getenv("duneanafluxtools_ROOT")) +
         "/share/duneanafluxtools/inputs/"
