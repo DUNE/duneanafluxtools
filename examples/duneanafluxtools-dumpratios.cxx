@@ -204,7 +204,6 @@ int main(int argc, char const *argv[]) {
   std::map<int, std::vector<std::vector<TH1D>>> histos;
 
   for (Long64_t i = 0; i < ents; ++i) {
-    std::cout << "getting entry " << i << std::endl;
     caf->GetEntry(i);
 
     for (auto &nu : SR->mc.nu) {
