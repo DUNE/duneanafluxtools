@@ -5,7 +5,7 @@
 Depends on ROOT and duneanaobj. Will build duneanaobj for you. Configure like
 
 ```bash
-cmake .. -DDUNE_ANAOBJ_BRANCH=v03_06_01
+cmake .. -DDUNE_ANAOBJ_BRANCH=v04_01_00
 ```
 
 to specify a duneanaobj version.
@@ -52,14 +52,14 @@ target_link_libraries(mytarget PUBLIC duneanafluxtools::all)
 // ...
 
   for (auto const &nu : SR->mc.nu) {
-    //ratios.first is a std::vector<float> of 1sigma shift weights for each focussing parameter
-    //ratios.second is a std::vector<float> of 1sigma shift weights for each hadron production PCA component
-    auto ratios = ana::GetFluxWeights(nu, is_neutrino_mode);
+    //weights.first is a std::vector<float> of 1sigma shift weights for each focussing parameter
+    //weights.second is a std::vector<float> of 1sigma shift weights for each hadron production PCA component
+    auto weights = ana::GetFluxWeights(nu, is_neutrino_mode);
   }
 
 ```
 
-* If you want to manually pass the required information
+* If you want to manually pass the required event information
 
 ```c++
 #include "duneanafluxtools/FluxWeighter.h"

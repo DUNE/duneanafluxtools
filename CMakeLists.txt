@@ -1,7 +1,7 @@
 # CMake version check
 cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
-project(duneanafluxtools VERSION 0.0.1 LANGUAGES CXX)
+project(duneanafluxtools VERSION 0.9.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Changes default install path to be a subdirectory of the build dir.
