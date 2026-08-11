@@ -266,7 +266,7 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
 
     int param_id = 0;
 
-    for (; ; param_id++) {
+    while(true) {
 
       std::string syst = "pca_" + std::to_string(param_id);
 
@@ -274,7 +274,10 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
       input_dir_i << input_dir << (input_dir.size() ? "/" : "") << syst << "/";
       TDirectory *param_d = inpF->GetDirectory(input_dir_i.str().c_str());
 
-      if(!param_d){ // keep trying until you can't find one
+      if (!param_d) { // keep trying until you can't find one
+        std::cout << "  Couldn't find parameter directory: " << input_dir << "/"
+                  << syst << " assuming we have " << (param_id - 1)
+                  << " parameters." << std::endl;
         break;
       }
 
