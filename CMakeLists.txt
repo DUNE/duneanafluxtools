@@ -21,7 +21,7 @@ LIST(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake/Modules)
 
 option(duneanafluxtools_USE_DUNEANAOBJ "Whether to build caf tools" ON)
 if(NOT DEFINED DUNE_ANAOBJ_BRANCH OR "${DUNE_ANAOBJ_BRANCH}x" STREQUAL "x")
-  set(DUNE_ANAOBJ_BRANCH v04_00_00)
+  set(DUNE_ANAOBJ_BRANCH v04_01_00)
 endif()
 
 # -- dependencies start
