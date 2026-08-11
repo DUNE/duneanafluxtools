@@ -266,9 +266,17 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
 
     int param_id = 0;
 
-    for (TObject *key : *d->GetListOfKeys()) {
+    for (; ; param_id++) {
 
-      std::string syst(key->GetName());
+      std::string syst = "pca_" + std::to_string(param_id);
+
+      std::stringstream input_dir_i("");
+      input_dir_i << input_dir << (input_dir.size() ? "/" : "") << syst << "/";
+      TDirectory *param_d = inpF->GetDirectory(input_dir_i.str().c_str());
+
+      if(!param_d){ // keep trying until you can't find one
+        break;
+      }
 
       if (verbose) {
         std::cout << "  Found parameter directory: " << input_dir << "/" << syst
@@ -276,10 +284,6 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
       }
 
       int nucfg = kND_numu_numode; // = 0
-
-      std::stringstream input_dir_i("");
-      input_dir_i << input_dir << (input_dir.size() ? "/" : "") << syst << "/";
-      TDirectory *param_d = inpF->GetDirectory(input_dir_i.str().c_str());
 
       hadprod.NDuncerts.emplace_back();
       hadprod.FDuncerts.emplace_back();
