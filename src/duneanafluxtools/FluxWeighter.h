@@ -104,5 +104,6 @@ public:
 
 private:
   std::vector<std::unique_ptr<TH1>>
-  GetNDOffAxisShifts(TFile *f, std::string nd_dir, std::string hname) const;
+  GetNDOffAxisShifts(std::unique_ptr<TFile> &f, std::string nd_dir,
+                     std::string hname) const;
 };

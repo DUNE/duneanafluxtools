@@ -85,7 +85,7 @@ void FluxWeighter::Initialize(std::string const &filename, bool verbose) {
 
   TDirectory *ogd = gDirectory;
 
-  TFile *inpF = new TFile(filename.c_str(), "READ");
+  auto inpF = std::unique_ptr<TFile>(TFile::Open(filename.c_str(), "READ"));
   if (!inpF || !inpF->IsOpen()) {
     if (ogd) {
       ogd->cd();
@@ -432,7 +432,7 @@ int FluxWeighter::GetNuConfig(int nu_pdg, bool IsND, bool IsNuMode,
 }
 
 std::vector<std::unique_ptr<TH1>>
-FluxWeighter::GetNDOffAxisShifts(TFile *f, std::string nd_dir,
+FluxWeighter::GetNDOffAxisShifts(std::unique_ptr<TFile> &f, std::string nd_dir,
                                  std::string hname) const {
   std::vector<std::unique_ptr<TH1>> OffAxisUncerts;
 
