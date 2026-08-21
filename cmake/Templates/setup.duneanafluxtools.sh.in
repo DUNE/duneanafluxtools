@@ -60,6 +60,9 @@ fi
 export duneanafluxtools_ROOT=${SETUPDIR}
 export duneanafluxtools_VERSION=@duneanafluxtools_VERSION@
 
+# Pull in the duneanaobj version this build was actually compiled against.
+setup duneanaobj @DUNE_ANAOBJ_BRANCH@ -q "e20:prof"
+
 add_to_PATH ${duneanafluxtools_ROOT}/bin
 add_to_LD_LIBRARY_PATH ${duneanafluxtools_ROOT}/lib
 if [ -e ${duneanafluxtools_ROOT}/lib64 ]; then
