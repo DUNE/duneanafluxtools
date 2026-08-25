@@ -158,6 +158,21 @@ int main(int argc, char const *argv[]) {
     cafout->Fill();
   }
 
+  // fast clone other trees
+  fout->cd();
+  auto mvat = fin->Get<TTree>("mvaTree");
+  if (mvat) {
+    mvat->CloneTree(-1,"fast");
+  }
+  auto metat = fin->Get<TTree>("meta");
+  if (metat) {
+    metat->CloneTree(-1,"fast");
+  }
+  auto gtree = fin->Get<TTree>("genieEvt");
+  if (gtree) {
+    gtree->CloneTree(-1,"fast");
+  }
+
   fout->Write();
   fout->Close();
 }
