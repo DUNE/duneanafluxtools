@@ -7,22 +7,39 @@
 #include "TFile.h"
 #include "TTree.h"
 
+#include "ROOT/RNTupleModel.hxx"
+#include "ROOT/RNTupleWriter.hxx"
+
+#include <memory>
+#include <variant>
+
 // #define DAFT_VERBOSE
 
 int main(int argc, char const *argv[]) {
 
-  if (argc != 3) {
+  if (argc < 3) {
     bool ask_help = (argc > 1) && ((argv[1] == "-h") || (argv[1] == "--help") ||
                                    (argv[1] == "-?"));
-    std::cout << "RUNLIKE: " << argv[0] << " input_caf.root output_caf.root"
+    std::cout << "RUNLIKE: " << argv[0]
+              << "[--rntuple] input_caf.root output_caf.root"
               << std::endl;
     return !ask_help;
   }
 
-  TFile *fin = TFile::Open(argv[1], "READ");
+  int input_index = 1;
+
+  bool write_rntuple = false;
+  while (argv[input_index][0] == '-') {
+    if (std::string(argv[input_index]) == "--rntuple") {
+      write_rntuple = true;
+    }
+    input_index++;
+  }
+
+  TFile *fin = TFile::Open(argv[input_index], "READ");
   if (!fin) {
-    std::cout << "[ERROR]: Failed to open " << argv[1] << " for reading."
-              << std::endl;
+    std::cout << "[ERROR]: Failed to open " << argv[input_index]
+              << " for reading." << std::endl;
     return 1;
   }
 
@@ -34,7 +51,7 @@ int main(int argc, char const *argv[]) {
   }
   if (!caf) {
     std::cout << "[ERROR]: Failed to read cafTree or cafmaker/cafTree from "
-              << argv[1] << "." << std::endl;
+              << argv[input_index] << "." << std::endl;
 
     return 1;
   }
@@ -44,12 +61,24 @@ int main(int argc, char const *argv[]) {
   Long64_t ents = caf->GetEntries();
   std::cout << "Input cafTree has " << ents << " entries." << std::endl;
 
-  TFile *fout = TFile::Open(argv[2], "RECREATE");
+  TFile *fout = TFile::Open(argv[input_index + 1], "RECREATE");
+  TDirectory *dout = fout;
   if (cafmakerdir) {
-    fout->mkdir("cafmaker");
+    dout = fout->mkdir("cafmaker");
   }
-  TTree *cafout = new TTree("cafTree", "");
-  cafout->Branch("rec", &SR);
+
+  auto model = ROOT::RNTupleModel::Create();
+  auto fldRec = model->MakeField<caf::StandardRecord>("rec");
+
+  std::variant<std::unique_ptr<ROOT::RNTupleWriter>, TTree *> writer;
+
+  if (write_rntuple) {
+    writer = ROOT::RNTupleWriter::Append(std::move(model), "cafRNTuple", *dout);
+  } else {
+    auto tree = new TTree("cafTree", "");
+    tree->Branch("rec", &SR);
+    writer = tree;
+  }
 
   TTree *globalout = nullptr;
   caf::SRGlobal *gl = nullptr;
@@ -155,24 +184,32 @@ int main(int argc, char const *argv[]) {
             std::vector<float>{1, ratios.second[hppi]};
       }
     }
-    cafout->Fill();
+
+    if (write_rntuple) {
+      *fldRec = *SR;
+    }
+
+    // call fill regardless of the type
+    std::visit([](auto &&arg) { arg->Fill(); }, writer);
   }
 
   // fast clone other trees
   fout->cd();
   auto mvat = fin->Get<TTree>("mvaTree");
   if (mvat) {
-    mvat->CloneTree(-1,"fast");
+    mvat->CloneTree(-1, "fast");
   }
   auto metat = fin->Get<TTree>("meta");
   if (metat) {
-    metat->CloneTree(-1,"fast");
+    metat->CloneTree(-1, "fast");
   }
   auto gtree = fin->Get<TTree>("genieEvt");
   if (gtree) {
-    gtree->CloneTree(-1,"fast");
+    gtree->CloneTree(-1, "fast");
   }
 
-  fout->Write();
-  fout->Close();
+  if (!write_rntuple) {
+    fout->Write();
+    fout->Close();
+  } // else we trust rntuple to do this for us
 }
