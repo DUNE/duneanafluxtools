@@ -3,26 +3,38 @@
 
 #include "duneanaobj/StandardRecord/SRGlobal.h"
 #include "duneanaobj/StandardRecord/StandardRecord.h"
+#include "duneanaobj/StandardRecord/Flat/FlatRecord.h"
 
 #include "TFile.h"
 #include "TTree.h"
+
+#include "Compression.h"
+
+#include <algorithm>
+#include <iostream>
+#include <string>
+#include <vector>
 
 // #define DAFT_VERBOSE
 
 int main(int argc, char const *argv[]) {
 
   if (argc != 3) {
-    bool ask_help = (argc > 1) && ((argv[1] == "-h") || (argv[1] == "--help") ||
-                                   (argv[1] == "-?"));
-    std::cout << "RUNLIKE: " << argv[0] << " input_caf.root output_caf.root"
+    bool ask_help = (argc > 1) &&
+                    ((std::string(argv[1]) == "-h") ||
+                     (std::string(argv[1]) == "--help") ||
+                     (std::string(argv[1]) == "-?"));
+
+    std::cout << "RUNLIKE: " << argv[0]
+              << " input_caf.root output_caf.root"
               << std::endl;
     return !ask_help;
   }
 
   TFile *fin = TFile::Open(argv[1], "READ");
-  if (!fin) {
-    std::cout << "[ERROR]: Failed to open " << argv[1] << " for reading."
-              << std::endl;
+  if (!fin || fin->IsZombie()) {
+    std::cout << "[ERROR]: Failed to open " << argv[1]
+              << " for reading." << std::endl;
     return 1;
   }
 
@@ -35,7 +47,6 @@ int main(int argc, char const *argv[]) {
   if (!caf) {
     std::cout << "[ERROR]: Failed to read cafTree or cafmaker/cafTree from "
               << argv[1] << "." << std::endl;
-
     return 1;
   }
 
@@ -44,14 +55,60 @@ int main(int argc, char const *argv[]) {
   Long64_t ents = caf->GetEntries();
   std::cout << "Input cafTree has " << ents << " entries." << std::endl;
 
+  // **** create hierarchical CAF ****
+
   TFile *fout = TFile::Open(argv[2], "RECREATE");
-  if (cafmakerdir) {
-    fout->mkdir("cafmaker");
+  if (!fout || fout->IsZombie()) {
+    std::cout << "[ERROR]: Failed to create " << argv[2] << std::endl;
+    return 1;
   }
+  TDirectory *cafoutdir = fout;
+  if (cafmakerdir) {
+    cafoutdir = fout->mkdir("cafmaker");
+  }
+  cafoutdir->cd();
+
   TTree *cafout = new TTree("cafTree", "");
   cafout->Branch("rec", &SR);
 
-  TTree *globalout = nullptr;
+  // **** create flat CAF ****
+
+  std::string flatFilename = argv[2];
+  auto rootPos = flatFilename.rfind(".root");
+
+  if (rootPos != std::string::npos &&
+      rootPos + 5 == flatFilename.size()) {
+    flatFilename.replace(rootPos, 5, ".flat.root");
+  } else {
+    flatFilename += ".flat.root";
+  }
+
+  TFile *flatCAFFile = TFile::Open(
+      flatFilename.c_str(),
+      "RECREATE",
+      "",
+      ROOT::CompressionSettings(ROOT::kLZ4, 1));
+
+  if (!flatCAFFile || flatCAFFile->IsZombie()) {
+    std::cout << "[ERROR]: Failed to create " << flatFilename << std::endl;
+    return 1;
+  }
+
+  TDirectory *flatCAFDir = flatCAFFile;
+
+  if (cafmakerdir) {
+    flatCAFDir = flatCAFFile->mkdir("cafmaker");
+  }
+
+  flatCAFDir->cd();
+
+  TTree *flatCAFTree = new TTree("cafTree", "cafTree");
+
+  auto flatCAFRecord =
+      new flat::Flat<caf::StandardRecord>(flatCAFTree, "rec", "", 0);
+
+  // **** globalTree ****
+
   caf::SRGlobal *gl = nullptr;
   auto global = fin->Get<TTree>("globalTree");
   if (global) {
@@ -61,8 +118,14 @@ int main(int argc, char const *argv[]) {
   } else {
     gl = new caf::SRGlobal();
   }
-  globalout = new TTree("globalTree", "");
+
+  TTree *globalout = new TTree("globalTree", "");
   globalout->Branch("global", &gl);
+
+  TTree *globaloutFlat = new TTree("globalTree", "");
+  globaloutFlat->Branch("global", &gl);
+
+  // **** fluxweighter ****
 
   auto &fw = FluxWeighter::Get();
 
@@ -95,7 +158,9 @@ int main(int argc, char const *argv[]) {
 
   for (size_t hppi = 0; hppi < fw.GetNHadProdPCAComponents(); hppi++) {
     auto nm =
-        std::string("FluxHadronProductionPCAComponent_") + std::to_string(hppi);
+        std::string("FluxHadronProductionPCAComponent_") +
+        std::to_string(hppi);
+
     auto pidx = get_param_index(nm);
     if (pidx == -1) {
       caf::SRSystParamHeader ph;
@@ -110,7 +175,11 @@ int main(int argc, char const *argv[]) {
     max_idx = std::max(max_idx, hadprod_param_indexes.back());
   }
 
+  // The global information is identical in the standard and flat CAFs.
   globalout->Fill();
+  globaloutFlat->Fill();
+
+  // **** process CAF entries ****
 
   for (Long64_t i = 0; i < ents; ++i) {
     caf->GetEntry(i);
@@ -131,9 +200,7 @@ int main(int argc, char const *argv[]) {
       for (auto r : ratios.first) {
         std::cout << r << ", ";
       }
-#endif
 
-#ifdef DAFT_VERBOSE
       std::cout << " ]\n  HadronProduction ratios: [ ";
       for (auto r : ratios.second) {
         std::cout << r << ", ";
@@ -155,24 +222,52 @@ int main(int argc, char const *argv[]) {
             std::vector<float>{1, ratios.second[hppi]};
       }
     }
+
+    // Fill standard CAF
     cafout->Fill();
+
+    // Fill flat CAF using the already updated StandardRecord
+    flatCAFRecord->Clear();
+    flatCAFRecord->Fill(*SR);
+    flatCAFTree->Fill();
   }
 
-  // fast clone other trees
+  // **** copy auxilary trees
+
+  auto copyAuxiliaryTrees = [&](TFile *output) {
+    output->cd();
+
+    auto mvat = fin->Get<TTree>("mvaTree");
+    if (mvat) {
+      mvat->CloneTree(-1, "fast");
+    }
+
+    auto metat = fin->Get<TTree>("meta");
+    if (metat) {
+      metat->CloneTree(-1, "fast");
+    }
+
+    auto gtree = fin->Get<TTree>("genieEvt");
+    if (gtree) {
+      gtree->CloneTree(-1, "fast");
+    }
+  };
+
+  copyAuxiliaryTrees(fout);
+  copyAuxiliaryTrees(flatCAFFile);
+
+  // write and close output files
+
   fout->cd();
-  auto mvat = fin->Get<TTree>("mvaTree");
-  if (mvat) {
-    mvat->CloneTree(-1,"fast");
-  }
-  auto metat = fin->Get<TTree>("meta");
-  if (metat) {
-    metat->CloneTree(-1,"fast");
-  }
-  auto gtree = fin->Get<TTree>("genieEvt");
-  if (gtree) {
-    gtree->CloneTree(-1,"fast");
-  }
-
   fout->Write();
   fout->Close();
+
+  flatCAFFile->cd();
+  flatCAFFile->Write();
+  flatCAFFile->Close();
+
+  fin->Close();
+
+  std::cout << "Created standard CAF: " << argv[2] << std::endl;
+  std::cout << "Created flat CAF:     " << flatFilename << std::endl;
 }
